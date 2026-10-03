@@ -1,0 +1,49 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+version = '1.3.0-beta+mk.26.2'
+base { archivesName = 'momentum-fabric-26.2' }
+
+repositories {
+	exclusiveContent {
+		forRepository { maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' } }
+		filter { includeGroup 'maven.modrinth' }
+	}
+	mavenCentral()
+}
+
+// 26.2 port: декомпиляция ссылается на team.unnamed.mocha (Molang-движок PAL). В рантайме его даёт PAL
+// (jar-in-jar), для компиляции достаём тот же mochafloats-5.0.0.jar из PAL (repo.redlance.org отдаёт ~200 Б/с).
+configurations { palNested { transitive = false } }
+dependencies { palNested 'maven.modrinth:player-animation-library:Hq1CwB9w' }
+def extractMocha = tasks.register('extractMocha', Copy) {
+	from(zipTree(configurations.palNested.singleFile)) { include 'META-INF/jars/mochafloats-*.jar' }
+	eachFile { path = name }
+	includeEmptyDirs = false
+	into layout.buildDirectory.dir('mocha')
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+	// Player Animation Library 1.2.6 для 26.2 (Modrinth Hq1CwB9w)
+	implementation 'maven.modrinth:player-animation-library:Hq1CwB9w'
+	compileOnly files(layout.buildDirectory.file('mocha/mochafloats-5.0.0.jar')).builtBy(extractMocha)
+	// 26.2 port: декомпилятор оставил @lombok.Generated на сгенерированных геттерах (как у автора, lombok 1.18.46)
+	compileOnly 'org.projectlombok:lombok:1.18.46'
+}
+
+// 26.2 port: свой run-каталог для dev-клиента, чтобы не делить run/ (логи) с dev-сервером
+loom {
+	runs {
+		client { runDir 'run-client' }
+	}
+}
+
+tasks.withType(JavaCompile).configureEach { it.options.release = 25 }
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}

@@ -1,0 +1,8 @@
+.gradle/
+build/
+run/
+run-client/
+bin/
+.settings/
+.classpath
+.project
